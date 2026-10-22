@@ -52,3 +52,5 @@ export const getOrgs = () => request("/admin/orgs");
 export const revokeKeys = (id) => request(`/admin/orgs/${id}/revoke-keys`, { method: "POST" });
 export const suspendOrg = (id, reason) => request(`/admin/orgs/${id}/suspend`, { method: "POST", body: { reason } });
 export const unsuspendOrg = (id) => request(`/admin/orgs/${id}/unsuspend`, { method: "POST" });
+export const deleteOrg = (id, confirmName) =>
+  request(`/admin/orgs/${id}`, { method: "DELETE", body: { confirm_name: confirmName } });

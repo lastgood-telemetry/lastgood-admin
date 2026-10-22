@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { getOrgs, revokeKeys, suspendOrg, unsuspendOrg } from "./api";
+import { deleteOrg, getOrgs, revokeKeys, suspendOrg, unsuspendOrg } from "./api";
 import { orgStatus, timeAgo } from "./util";
 
 const STATUS_LABEL = {
@@ -36,6 +36,33 @@ function Confirm({ action, onCancel, onConfirm, busy }) {
   );
 }
 
+function DeleteConfirm({ org, onCancel, onConfirm, busy }) {
+  const [typed, setTyped] = useState("");
+  const matches = typed.trim() === org.name;
+  return (
+    <div className="overlay" onClick={onCancel}>
+      <div className="card modal" onClick={(e) => e.stopPropagation()}>
+        <p>
+          <strong>Delete {org.name} permanently?</strong> This removes the org, its {org.user_count} user(s), projects,
+          integrations, API keys, every stored change event, incidents, notification settings, postmortems and cached AI
+          briefs. Member emails and the org name are freed, so the same people can sign up and onboard again. This cannot
+          be undone.
+        </p>
+        <label className="muted small">
+          Type <strong>{org.name}</strong> to confirm
+          <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={org.name} />
+        </label>
+        <div className="row end">
+          <button onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="danger" onClick={() => onConfirm(typed.trim())} disabled={busy || !matches}>
+            {busy ? "Deleting..." : "Delete permanently"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin({ onSignOut }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -62,7 +89,7 @@ export default function Admin({ onSignOut }) {
     load();
   }, [load]);
 
-  const run = async (reason) => {
+  const run = async (value) => {
     setBusy(true);
     try {
       const { type, org } = action;
@@ -70,8 +97,11 @@ export default function Admin({ onSignOut }) {
         const r = await revokeKeys(org.id);
         setFlash(`Revoked ${r.revoked} key(s) for ${org.name}.`);
       } else if (type === "suspend") {
-        await suspendOrg(org.id, reason);
+        await suspendOrg(org.id, value);
         setFlash(`${org.name} suspended.`);
+      } else if (type === "delete") {
+        await deleteOrg(org.id, value);
+        setFlash(`Deleted ${org.name} and all its data.`);
       } else {
         await unsuspendOrg(org.id);
         setFlash(`${org.name} unsuspended.`);
@@ -139,6 +169,7 @@ export default function Admin({ onSignOut }) {
                       <td>{timeAgo(o.last_event_at)}</td>
                       <td className="actions" onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => setAction({ type: "revoke", org: o })} disabled={o.active_api_keys === 0}>Revoke keys</button>
+                        <button className="danger" onClick={() => setAction({ type: "delete", org: o })}>Delete</button>
                         {o.suspended_at ? (
                           <button onClick={() => setAction({ type: "unsuspend", org: o })}>Unsuspend</button>
                         ) : (
@@ -176,7 +207,12 @@ export default function Admin({ onSignOut }) {
         </div>
       )}
 
-      {action && <Confirm action={action} busy={busy} onCancel={() => setAction(null)} onConfirm={run} />}
+      {action && action.type === "delete" && (
+        <DeleteConfirm org={action.org} busy={busy} onCancel={() => setAction(null)} onConfirm={run} />
+      )}
+      {action && action.type !== "delete" && (
+        <Confirm action={action} busy={busy} onCancel={() => setAction(null)} onConfirm={run} />
+      )}
     </div>
   );
 }
